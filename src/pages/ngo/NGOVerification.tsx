@@ -9,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Upload, CheckCircle2, Clock, XCircle, FileText, Building2 } from 'lucide-react';
+import { Loader2, Upload, CheckCircle2, Clock, XCircle, FileText, Building2, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { LocationPicker } from '@/components/maps/LocationPicker';
 
 type VerificationStatus = 'pending' | 'approved' | 'rejected';
 
@@ -23,6 +24,8 @@ interface NGODetails {
   pincode: string;
   website: string;
   description: string;
+  latitude: number | null;
+  longitude: number | null;
   verification_status: VerificationStatus;
   rejection_reason?: string;
 }
@@ -56,6 +59,8 @@ export default function NGOVerification() {
     pincode: '',
     website: '',
     description: '',
+    latitude: null,
+    longitude: null,
   });
 
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
@@ -95,6 +100,8 @@ export default function NGOVerification() {
           pincode: ngoData.pincode,
           website: ngoData.website || '',
           description: ngoData.description || '',
+          latitude: ngoData.latitude,
+          longitude: ngoData.longitude,
         });
       }
 
@@ -432,6 +439,25 @@ export default function NGOVerification() {
                     onChange={handleInputChange}
                     placeholder="Tell us about your organization's mission and the communities you serve..."
                     rows={4}
+                  />
+                </div>
+
+                {/* Location Picker */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Organization Location *
+                  </Label>
+                  <LocationPicker
+                    value={formData.latitude && formData.longitude ? { lat: formData.latitude, lng: formData.longitude } : null}
+                    onChange={(location) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        latitude: location.lat,
+                        longitude: location.lng,
+                      }));
+                    }}
+                    placeholder="Select your organization's location on the map for distance-based matching"
                   />
                 </div>
 

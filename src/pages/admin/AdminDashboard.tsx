@@ -19,8 +19,10 @@ import {
   Clock,
   FileText,
   ExternalLink,
+  MapPin,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { LocationMap, MapMarker } from '@/components/maps/LocationMap';
 
 interface PendingNGO {
   id: string;
@@ -31,6 +33,8 @@ interface PendingNGO {
   city: string;
   state: string;
   pincode: string;
+  latitude: number | null;
+  longitude: number | null;
   verification_status: string;
   created_at: string;
   profile?: {
@@ -262,6 +266,10 @@ export default function AdminDashboard() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="map">
+                <MapPin className="h-4 w-4 mr-1" />
+                Map View
+              </TabsTrigger>
               <TabsTrigger value="ngos">All NGOs</TabsTrigger>
               <TabsTrigger value="food-requests">Food Requests</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -391,6 +399,52 @@ export default function AdminDashboard() {
                   </Card>
                 ))
               )}
+            </TabsContent>
+
+            <TabsContent value="map">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    NGO Locations
+                  </CardTitle>
+                  <CardDescription>
+                    View all pending NGO locations on the map
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const markers: MapMarker[] = pendingNGOs
+                      .filter((ngo) => ngo.latitude && ngo.longitude)
+                      .map((ngo) => ({
+                        id: ngo.id,
+                        lat: ngo.latitude!,
+                        lng: ngo.longitude!,
+                        title: ngo.organization_name,
+                        type: 'ngo' as const,
+                        description: `${ngo.city}, ${ngo.state}`,
+                      }));
+
+                    return markers.length > 0 ? (
+                      <LocationMap
+                        markers={markers}
+                        height="500px"
+                        onMarkerClick={(marker) => {
+                          const ngo = pendingNGOs.find((n) => n.id === marker.id);
+                          if (ngo) {
+                            alert(`NGO: ${ngo.organization_name}\nAddress: ${ngo.address}, ${ngo.city}`);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No NGOs with location data yet.</p>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="ngos">
