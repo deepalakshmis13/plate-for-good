@@ -14,6 +14,112 @@ export type Database = {
   }
   public: {
     Tables: {
+      food_request_photos: {
+        Row: {
+          captured_at: string | null
+          file_name: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          photo_url: string
+          request_id: string
+          uploaded_at: string
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string | null
+          file_name: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          photo_url: string
+          request_id: string
+          uploaded_at?: string
+          user_id: string
+        }
+        Update: {
+          captured_at?: string | null
+          file_name?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          photo_url?: string
+          request_id?: string
+          uploaded_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_request_photos_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "food_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      food_requests: {
+        Row: {
+          address: string | null
+          created_at: string
+          description: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          needed_by: string | null
+          ngo_id: string
+          quantity_needed: number
+          quantity_unit: string
+          status: Database["public"]["Enums"]["food_request_status"]
+          title: string
+          updated_at: string
+          urgency_level: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          needed_by?: string | null
+          ngo_id: string
+          quantity_needed: number
+          quantity_unit?: string
+          status?: Database["public"]["Enums"]["food_request_status"]
+          title: string
+          updated_at?: string
+          urgency_level?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          needed_by?: string | null
+          ngo_id?: string
+          quantity_needed?: number
+          quantity_unit?: string
+          status?: Database["public"]["Enums"]["food_request_status"]
+          title?: string
+          updated_at?: string
+          urgency_level?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_requests_ngo_id_fkey"
+            columns: ["ngo_id"]
+            isOneToOne: false
+            referencedRelation: "ngo_details"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ngo_details: {
         Row: {
           address: string
@@ -183,6 +289,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "ngo" | "donor" | "volunteer"
+      food_request_status:
+        | "pending"
+        | "approved"
+        | "matched"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
       verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -312,6 +425,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "ngo", "donor", "volunteer"],
+      food_request_status: [
+        "pending",
+        "approved",
+        "matched",
+        "in_progress",
+        "completed",
+        "cancelled",
+      ],
       verification_status: ["pending", "approved", "rejected"],
     },
   },
