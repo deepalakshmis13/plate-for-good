@@ -63,6 +63,7 @@ export type Database = {
           address: string | null
           created_at: string
           description: string | null
+          donor_id: string | null
           id: string
           latitude: number | null
           longitude: number | null
@@ -80,6 +81,7 @@ export type Database = {
           address?: string | null
           created_at?: string
           description?: string | null
+          donor_id?: string | null
           id?: string
           latitude?: number | null
           longitude?: number | null
@@ -97,6 +99,7 @@ export type Database = {
           address?: string | null
           created_at?: string
           description?: string | null
+          donor_id?: string | null
           id?: string
           latitude?: number | null
           longitude?: number | null
