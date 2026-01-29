@@ -2,10 +2,8 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Leaf, Heart, Users, Shield, ArrowRight, MapPin, Zap, TrendingUp } from 'lucide-react';
-
 export default function Index() {
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -58,19 +56,19 @@ export default function Index() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-4xl font-bold text-primary mb-2">0</div>
+              <div className="text-4xl font-bold text-primary mb-2">100+</div>
               <div className="text-muted-foreground">Meals Redistributed</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary mb-2">0</div>
+              <div className="text-4xl font-bold text-primary mb-2">10+</div>
               <div className="text-muted-foreground">Verified NGOs</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary mb-2">0</div>
+              <div className="text-4xl font-bold text-primary mb-2">20+</div>
               <div className="text-muted-foreground">Active Volunteers</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary mb-2">0 kg</div>
+              <div className="text-4xl font-bold text-primary mb-2">50kg+</div>
               <div className="text-muted-foreground">Food Waste Prevented</div>
             </div>
           </div>
@@ -246,6 +244,5 @@ export default function Index() {
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 }
