@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertCircle, CheckCircle2, Clock, LogOut, Building2, FileText, Plus } from 'lucide-react';
+import { CreateFoodRequestDialog, FoodRequestList } from '@/components/food-requests';
 
 type VerificationStatus = 'pending' | 'approved' | 'rejected';
 
 interface NGODetails {
+  id: string;
   organization_name: string;
   verification_status: VerificationStatus;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export default function NGODashboard() {
@@ -37,7 +41,7 @@ export default function NGODashboard() {
     try {
       const { data, error } = await supabase
         .from('ngo_details')
-        .select('organization_name, verification_status')
+        .select('id, organization_name, verification_status, latitude, longitude')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -183,6 +187,24 @@ export default function NGODashboard() {
   }
 
   // Approved - Full Dashboard
+  return <ApprovedNGODashboard ngoDetails={ngoDetails} onSignOut={handleSignOut} />;
+}
+
+// Extract approved dashboard to a separate component for cleanliness
+function ApprovedNGODashboard({ 
+  ngoDetails, 
+  onSignOut 
+}: { 
+  ngoDetails: NGODetails; 
+  onSignOut: () => void;
+}) {
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const ngoLocation = ngoDetails.latitude && ngoDetails.longitude
+    ? { latitude: ngoDetails.latitude, longitude: ngoDetails.longitude }
+    : null;
+
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background px-6 py-4">
@@ -197,7 +219,7 @@ export default function NGODashboard() {
               </span>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleSignOut}>
+          <Button variant="outline" size="sm" onClick={onSignOut}>
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
@@ -211,68 +233,37 @@ export default function NGODashboard() {
               <h1 className="text-3xl font-bold">Dashboard</h1>
               <p className="text-muted-foreground">Manage your food requests and donations</p>
             </div>
-            <Button>
+            <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Create Food Request
             </Button>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Active Requests</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Fulfilled This Month</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Meals Received</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Active Donors</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Empty state */}
+          {/* Food Request List */}
           <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-12">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-medium mb-2">No food requests yet</h3>
-                <p className="text-muted-foreground mb-4">
-                  Create your first food request to start receiving donations from verified donors.
-                </p>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Food Request
-                </Button>
-              </div>
+            <CardHeader>
+              <CardTitle>Your Food Requests</CardTitle>
+              <CardDescription>
+                Track the status of your food donation requests
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FoodRequestList 
+                ngoId={ngoDetails.id} 
+                refreshTrigger={refreshTrigger}
+              />
             </CardContent>
           </Card>
         </div>
       </main>
+
+      <CreateFoodRequestDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        ngoId={ngoDetails.id}
+        ngoLocation={ngoLocation}
+        onSuccess={() => setRefreshTrigger((t) => t + 1)}
+      />
     </div>
   );
 }
