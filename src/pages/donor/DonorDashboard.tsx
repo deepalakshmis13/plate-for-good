@@ -1,19 +1,72 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, LogOut, Leaf, Package, TrendingUp, Heart } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, LogOut, Leaf, Package, Heart, CheckCircle2 } from 'lucide-react';
+import { DonorFoodRequestList } from '@/components/food-requests';
 
 export default function DonorDashboard() {
   const { user, role, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    availableRequests: 0,
+    myDonations: 0,
+    completedDonations: 0,
+  });
 
   useEffect(() => {
     if (!authLoading && (!user || role !== 'donor')) {
       navigate('/auth');
     }
   }, [user, role, authLoading, navigate]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user) return;
+
+      // Fetch available requests count
+      const { count: availableCount } = await supabase
+        .from('food_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .is('donor_id', null);
+
+      // Fetch my active donations
+      const { count: myActiveCount } = await supabase
+        .from('food_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('donor_id', user.id)
+        .in('status', ['matched', 'in_progress']);
+
+      // Fetch completed donations
+      const { count: completedCount } = await supabase
+        .from('food_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('donor_id', user.id)
+        .eq('status', 'completed');
+
+      setStats({
+        availableRequests: availableCount || 0,
+        myDonations: myActiveCount || 0,
+        completedDonations: completedCount || 0,
+      });
+    };
+
+    fetchStats();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('donor-stats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'food_requests' }, fetchStats)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -51,57 +104,156 @@ export default function DonorDashboard() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Food Requests Available</CardDescription>
+                <CardDescription>Available Requests</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0</div>
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  <span className="text-3xl font-bold">{stats.availableRequests}</span>
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Your Donations</CardDescription>
+                <CardDescription>My Active Donations</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0</div>
+                <div className="flex items-center gap-2">
+                  <Heart className="h-5 w-5 text-primary" />
+                  <span className="text-3xl font-bold">{stats.myDonations}</span>
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Meals Provided</CardDescription>
+                <CardDescription>Completed Donations</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Food Saved (kg)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-success" />
+                  <span className="text-3xl font-bold">{stats.completedDonations}</span>
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Empty state */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-12">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                  <Package className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-medium mb-2">No active food requests</h3>
-                <p className="text-muted-foreground mb-4">
-                  When verified NGOs create food requests, they will appear here for you to accept.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Tabs */}
+          <Tabs defaultValue="available" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="available">Available Requests</TabsTrigger>
+              <TabsTrigger value="my-donations">My Donations</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="available">
+              <DonorFoodRequestList />
+            </TabsContent>
+
+            <TabsContent value="my-donations">
+              <MyDonationsList userId={user?.id} />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
+    </div>
+  );
+}
+
+// Component to show donor's accepted donations
+function MyDonationsList({ userId }: { userId?: string }) {
+  const [donations, setDonations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDonations = async () => {
+      if (!userId) return;
+
+      const { data, error } = await supabase
+        .from('food_requests')
+        .select('*')
+        .eq('donor_id', userId)
+        .in('status', ['matched', 'in_progress', 'completed'])
+        .order('updated_at', { ascending: false });
+
+      if (!error && data) {
+        setDonations(data);
+      }
+      setLoading(false);
+    };
+
+    fetchDonations();
+
+    const channel = supabase
+      .channel('my-donations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'food_requests' }, fetchDonations)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (donations.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-12">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+              <Heart className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">No donations yet</h3>
+            <p className="text-muted-foreground">
+              When you accept a food request, it will appear here.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const statusLabels: Record<string, { label: string; className: string }> = {
+    matched: { label: 'Matched', className: 'bg-primary text-primary-foreground' },
+    in_progress: { label: 'In Progress', className: 'bg-warning text-warning-foreground' },
+    completed: { label: 'Completed', className: 'bg-success text-success-foreground' },
+  };
+
+  return (
+    <div className="space-y-4">
+      {donations.map((donation) => {
+        const status = statusLabels[donation.status] || { label: donation.status, className: 'bg-muted' };
+        return (
+          <Card key={donation.id}>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-lg">{donation.title}</CardTitle>
+                  <CardDescription>
+                    {donation.quantity_needed} {donation.quantity_unit}
+                  </CardDescription>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full ${status.className}`}>
+                  {status.label}
+                </span>
+              </div>
+            </CardHeader>
+            {donation.description && (
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{donation.description}</p>
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }
