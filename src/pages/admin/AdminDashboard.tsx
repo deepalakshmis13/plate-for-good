@@ -20,9 +20,11 @@ import {
   FileText,
   ExternalLink,
   MapPin,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LocationMap, MapMarker } from '@/components/maps/LocationMap';
+import { AdminFoodRequestReview } from '@/components/food-requests';
 
 interface PendingNGO {
   id: string;
@@ -55,6 +57,7 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [pendingNGOs, setPendingNGOs] = useState<PendingNGO[]>([]);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,8 +68,23 @@ export default function AdminDashboard() {
 
     if (user && role === 'admin') {
       fetchPendingVerifications();
+      fetchPendingRequestsCount();
     }
   }, [user, role, authLoading, navigate]);
+
+  const fetchPendingRequestsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('food_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      if (error) throw error;
+      setPendingRequestsCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching pending requests count:', error);
+    }
+  };
 
   const fetchPendingVerifications = async () => {
     try {
@@ -266,12 +284,20 @@ export default function AdminDashboard() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="food-requests">
+                <UtensilsCrossed className="h-4 w-4 mr-1" />
+                Food Requests
+                {pendingRequestsCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    {pendingRequestsCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="map">
                 <MapPin className="h-4 w-4 mr-1" />
                 Map View
               </TabsTrigger>
               <TabsTrigger value="ngos">All NGOs</TabsTrigger>
-              <TabsTrigger value="food-requests">Food Requests</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
 
@@ -459,10 +485,17 @@ export default function AdminDashboard() {
 
             <TabsContent value="food-requests">
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center py-12 text-muted-foreground">
-                    Food request management coming soon...
-                  </div>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UtensilsCrossed className="h-5 w-5" />
+                    Pending Food Requests
+                  </CardTitle>
+                  <CardDescription>
+                    Review and approve food requests from verified NGOs
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AdminFoodRequestReview />
                 </CardContent>
               </Card>
             </TabsContent>

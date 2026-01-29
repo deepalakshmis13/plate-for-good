@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, LogOut, Users, Truck, Clock, MapPin, Navigation } from 'lucide-react';
+import { Loader2, LogOut, Users, Truck, Clock, MapPin, Navigation, UtensilsCrossed } from 'lucide-react';
 import { LocationMap, MapMarker } from '@/components/maps/LocationMap';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import { formatDistance, calculateDistance } from '@/lib/distance';
+import { VolunteerFoodRequestList } from '@/components/food-requests';
 
 interface ApprovedNGO {
   id: string;
@@ -284,16 +285,17 @@ export default function VolunteerDashboard() {
 
             <TabsContent value="deliveries">
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center py-12">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                      <Truck className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-lg font-medium mb-2">No deliveries available</h3>
-                    <p className="text-muted-foreground mb-4">
-                      When donors need help with deliveries, they will appear here.
-                    </p>
-                  </div>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UtensilsCrossed className="h-5 w-5" />
+                    Available Deliveries
+                  </CardTitle>
+                  <CardDescription>
+                    Food requests that need delivery assistance, sorted by urgency and distance
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <VolunteerFoodRequestList userLocation={userLocation} />
                 </CardContent>
               </Card>
             </TabsContent>
