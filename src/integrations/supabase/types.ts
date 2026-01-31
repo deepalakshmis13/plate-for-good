@@ -273,6 +273,72 @@ export type Database = {
         }
         Relationships: []
       }
+      volunteer_details: {
+        Row: {
+          address: string
+          associated_organization: string | null
+          city: string
+          created_at: string
+          full_name: string
+          government_id_number: string
+          government_id_type: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          phone_number: string
+          pincode: string
+          rejection_reason: string | null
+          state: string
+          updated_at: string
+          user_id: string
+          verification_status: Database["public"]["Enums"]["verification_status"]
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          address: string
+          associated_organization?: string | null
+          city: string
+          created_at?: string
+          full_name: string
+          government_id_number: string
+          government_id_type: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          phone_number: string
+          pincode: string
+          rejection_reason?: string | null
+          state: string
+          updated_at?: string
+          user_id: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          address?: string
+          associated_organization?: string | null
+          city?: string
+          created_at?: string
+          full_name?: string
+          government_id_number?: string
+          government_id_type?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          phone_number?: string
+          pincode?: string
+          rejection_reason?: string | null
+          state?: string
+          updated_at?: string
+          user_id?: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, LogOut, Users, Truck, Clock, MapPin, Navigation, UtensilsCrossed } from 'lucide-react';
+import { Loader2, LogOut, Users, Truck, Clock, MapPin, Navigation, UtensilsCrossed, Shield } from 'lucide-react';
 import { LocationMap, MapMarker } from '@/components/maps/LocationMap';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import { formatDistance, calculateDistance } from '@/lib/distance';
 import { VolunteerFoodRequestList } from '@/components/food-requests';
+
+type VerificationStatus = 'pending' | 'approved' | 'rejected' | null;
 
 interface ApprovedNGO {
   id: string;
@@ -22,6 +24,11 @@ interface ApprovedNGO {
   longitude: number;
 }
 
+interface VolunteerDetails {
+  verification_status: VerificationStatus;
+  rejection_reason?: string;
+}
+
 export default function VolunteerDashboard() {
   const { user, role, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -29,6 +36,8 @@ export default function VolunteerDashboard() {
   
   const [approvedNGOs, setApprovedNGOs] = useState<ApprovedNGO[]>([]);
   const [loadingNGOs, setLoadingNGOs] = useState(true);
+  const [volunteerDetails, setVolunteerDetails] = useState<VolunteerDetails | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(true);
 
   useEffect(() => {
     if (!authLoading && (!user || role !== 'volunteer')) {
@@ -37,8 +46,30 @@ export default function VolunteerDashboard() {
   }, [user, role, authLoading, navigate]);
 
   useEffect(() => {
-    fetchApprovedNGOs();
-  }, []);
+    if (user) {
+      fetchVolunteerDetails();
+      fetchApprovedNGOs();
+    }
+  }, [user]);
+
+  const fetchVolunteerDetails = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('volunteer_details')
+        .select('verification_status, rejection_reason')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      setVolunteerDetails(data as VolunteerDetails | null);
+    } catch (error) {
+      console.error('Error fetching volunteer details:', error);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
 
   const fetchApprovedNGOs = async () => {
     try {
@@ -63,13 +94,15 @@ export default function VolunteerDashboard() {
     navigate('/auth');
   };
 
-  if (authLoading) {
+  if (authLoading || loadingDetails) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+
+  const verificationStatus = volunteerDetails?.verification_status || null;
 
   // Calculate distances and sort NGOs
   const ngosWithDistance = userLocation
@@ -105,6 +138,65 @@ export default function VolunteerDashboard() {
     })),
   ];
 
+  // Render verification gate for unverified volunteers
+  const renderVerificationGate = () => {
+    if (verificationStatus === null) {
+      return (
+        <Card className="mx-auto max-w-lg">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Shield className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Verification Required</h2>
+              <p className="text-muted-foreground mb-6">
+                Please complete the verification process to start accepting deliveries.
+              </p>
+              <Button onClick={() => navigate('/volunteer/verification')}>
+                Start Verification
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (verificationStatus === 'pending') {
+      return (
+        <Alert className="mx-auto max-w-lg bg-warning/10 border-warning">
+          <Clock className="h-4 w-4 text-warning" />
+          <AlertTitle className="text-warning">Account Under Verification</AlertTitle>
+          <AlertDescription>
+            Your account is being reviewed by our admin team. You will be notified once your verification is complete.
+            This usually takes 24-48 hours.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+
+    if (verificationStatus === 'rejected') {
+      return (
+        <div className="mx-auto max-w-lg space-y-4">
+          <Alert variant="destructive">
+            <AlertTitle>Verification Rejected</AlertTitle>
+            <AlertDescription>
+              {volunteerDetails?.rejection_reason || 'Your verification was rejected. Please update your information and resubmit.'}
+            </AlertDescription>
+          </Alert>
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <Button onClick={() => navigate('/volunteer/verification')}>
+                Resubmit Verification
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background px-6 py-4">
@@ -122,184 +214,183 @@ export default function VolunteerDashboard() {
 
       <main className="p-8">
         <div className="mx-auto max-w-6xl">
-          <Alert className="mb-8 bg-warning/10 border-warning">
-            <Clock className="h-4 w-4 text-warning" />
-            <AlertTitle className="text-warning">Verification Required</AlertTitle>
-            <AlertDescription>
-              Volunteer verification is coming soon. You will be able to upload your ID proof and get verified to start helping with deliveries.
-            </AlertDescription>
-          </Alert>
-
           <div className="mb-8">
             <h1 className="text-3xl font-bold">Welcome, Volunteer!</h1>
             <p className="text-muted-foreground">Help us bridge the gap between donors and NGOs</p>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Deliveries Available</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Your Deliveries</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Nearby NGOs</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{approvedNGOs.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Distance Traveled (km)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">0</div>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Show verification gate if not approved */}
+          {verificationStatus !== 'approved' ? (
+            renderVerificationGate()
+          ) : (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Deliveries Available</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">0</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Your Deliveries</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">0</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Nearby NGOs</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{approvedNGOs.length}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Distance Traveled (km)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">0</div>
+                  </CardContent>
+                </Card>
+              </div>
 
-          {/* Tabs for Map and List view */}
-          <Tabs defaultValue="map" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="map">
-                <MapPin className="h-4 w-4 mr-2" />
-                Map View
-              </TabsTrigger>
-              <TabsTrigger value="list">
-                <Navigation className="h-4 w-4 mr-2" />
-                Nearby NGOs
-              </TabsTrigger>
-              <TabsTrigger value="deliveries">
-                <Truck className="h-4 w-4 mr-2" />
-                Available Deliveries
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="map">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    NGO Locations Near You
-                  </CardTitle>
-                  <CardDescription>
-                    {locationLoading
-                      ? 'Getting your location...'
-                      : locationError
-                      ? `Location error: ${locationError}`
-                      : userLocation
-                      ? 'Showing verified NGOs in your area'
-                      : 'Enable location to see distances'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {loadingNGOs ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                  ) : (
-                    <LocationMap
-                      markers={markers}
-                      height="400px"
-                      showUserLocation={false}
-                      center={userLocation ? [userLocation.lat, userLocation.lng] : undefined}
-                      zoom={userLocation ? 12 : 5}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="list">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Nearby NGOs</CardTitle>
-                      <CardDescription>Verified NGOs sorted by distance from your location</CardDescription>
-                    </div>
-                    {!userLocation && !locationLoading && (
-                      <Button variant="outline" size="sm" onClick={refreshLocation}>
-                        <Navigation className="h-4 w-4 mr-2" />
-                        Get Location
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingNGOs ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                  ) : ngosWithDistance.length === 0 ? (
-                    <div className="text-center py-12">
-                      <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                      <p className="text-muted-foreground">No verified NGOs with locations yet.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {ngosWithDistance.map((ngo) => (
-                        <div
-                          key={ngo.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="p-2 bg-primary/10 rounded-full">
-                              <MapPin className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium">{ngo.organization_name}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {ngo.address}, {ngo.city}
-                              </p>
-                            </div>
-                          </div>
-                          {ngo.distance !== null && (
-                            <div className="text-right">
-                              <span className="text-lg font-semibold text-primary">
-                                {formatDistance(ngo.distance)}
-                              </span>
-                              <p className="text-xs text-muted-foreground">away</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="deliveries">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UtensilsCrossed className="h-5 w-5" />
+              {/* Tabs for Map and List view */}
+              <Tabs defaultValue="map" className="space-y-6">
+                <TabsList>
+                  <TabsTrigger value="map">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Map View
+                  </TabsTrigger>
+                  <TabsTrigger value="list">
+                    <Navigation className="h-4 w-4 mr-2" />
+                    Nearby NGOs
+                  </TabsTrigger>
+                  <TabsTrigger value="deliveries">
+                    <Truck className="h-4 w-4 mr-2" />
                     Available Deliveries
-                  </CardTitle>
-                  <CardDescription>
-                    Food requests that need delivery assistance, sorted by urgency and distance
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <VolunteerFoodRequestList userLocation={userLocation} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="map">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5" />
+                        NGO Locations Near You
+                      </CardTitle>
+                      <CardDescription>
+                        {locationLoading
+                          ? 'Getting your location...'
+                          : locationError
+                          ? `Location error: ${locationError}`
+                          : userLocation
+                          ? 'Showing verified NGOs in your area'
+                          : 'Enable location to see distances'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingNGOs ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                      ) : (
+                        <LocationMap
+                          markers={markers}
+                          height="400px"
+                          showUserLocation={false}
+                          center={userLocation ? [userLocation.lat, userLocation.lng] : undefined}
+                          zoom={userLocation ? 12 : 5}
+                        />
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="list">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Nearby NGOs</CardTitle>
+                          <CardDescription>Verified NGOs sorted by distance from your location</CardDescription>
+                        </div>
+                        {!userLocation && !locationLoading && (
+                          <Button variant="outline" size="sm" onClick={refreshLocation}>
+                            <Navigation className="h-4 w-4 mr-2" />
+                            Get Location
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingNGOs ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                      ) : ngosWithDistance.length === 0 ? (
+                        <div className="text-center py-12">
+                          <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                          <p className="text-muted-foreground">No verified NGOs with locations yet.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {ngosWithDistance.map((ngo) => (
+                            <div
+                              key={ngo.id}
+                              className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="p-2 bg-primary/10 rounded-full">
+                                  <MapPin className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                  <h4 className="font-medium">{ngo.organization_name}</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {ngo.address}, {ngo.city}
+                                  </p>
+                                </div>
+                              </div>
+                              {ngo.distance !== null && (
+                                <div className="text-right">
+                                  <span className="text-lg font-semibold text-primary">
+                                    {formatDistance(ngo.distance)}
+                                  </span>
+                                  <p className="text-xs text-muted-foreground">away</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="deliveries">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <UtensilsCrossed className="h-5 w-5" />
+                        Available Deliveries
+                      </CardTitle>
+                      <CardDescription>
+                        Food requests that need delivery assistance, sorted by urgency and distance
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <VolunteerFoodRequestList userLocation={userLocation} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
         </div>
       </main>
     </div>
