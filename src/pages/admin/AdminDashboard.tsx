@@ -21,10 +21,12 @@ import {
   ExternalLink,
   MapPin,
   UtensilsCrossed,
+  TrendingUp,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LocationMap, MapMarker } from '@/components/maps/LocationMap';
 import { AdminFoodRequestReview } from '@/components/food-requests';
+import { AdminVolunteerVerification } from '@/components/verification';
 
 interface PendingNGO {
   id: string;
@@ -50,6 +52,18 @@ interface PendingNGO {
   }[];
 }
 
+interface OverviewStats {
+  pendingNGOs: number;
+  approvedNGOs: number;
+  rejectedNGOs: number;
+  pendingVolunteers: number;
+  approvedVolunteers: number;
+  rejectedVolunteers: number;
+  activeDonors: number;
+  pendingFoodRequests: number;
+  completedDeliveries: number;
+}
+
 export default function AdminDashboard() {
   const { user, role, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -57,7 +71,17 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [pendingNGOs, setPendingNGOs] = useState<PendingNGO[]>([]);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [stats, setStats] = useState<OverviewStats>({
+    pendingNGOs: 0,
+    approvedNGOs: 0,
+    rejectedNGOs: 0,
+    pendingVolunteers: 0,
+    approvedVolunteers: 0,
+    rejectedVolunteers: 0,
+    activeDonors: 0,
+    pendingFoodRequests: 0,
+    completedDeliveries: 0,
+  });
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,28 +91,61 @@ export default function AdminDashboard() {
     }
 
     if (user && role === 'admin') {
-      fetchPendingVerifications();
-      fetchPendingRequestsCount();
+      fetchData();
     }
   }, [user, role, authLoading, navigate]);
 
-  const fetchPendingRequestsCount = async () => {
-    try {
-      const { count, error } = await supabase
-        .from('food_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
+  const fetchData = async () => {
+    await Promise.all([
+      fetchPendingNGOs(),
+      fetchOverviewStats(),
+    ]);
+    setLoading(false);
+  };
 
-      if (error) throw error;
-      setPendingRequestsCount(count || 0);
+  const fetchOverviewStats = async () => {
+    try {
+      // NGO stats
+      const [pendingNGOs, approvedNGOs, rejectedNGOs] = await Promise.all([
+        supabase.from('ngo_details').select('*', { count: 'exact', head: true }).eq('verification_status', 'pending'),
+        supabase.from('ngo_details').select('*', { count: 'exact', head: true }).eq('verification_status', 'approved'),
+        supabase.from('ngo_details').select('*', { count: 'exact', head: true }).eq('verification_status', 'rejected'),
+      ]);
+
+      // Volunteer stats
+      const [pendingVolunteers, approvedVolunteers, rejectedVolunteers] = await Promise.all([
+        supabase.from('volunteer_details').select('*', { count: 'exact', head: true }).eq('verification_status', 'pending'),
+        supabase.from('volunteer_details').select('*', { count: 'exact', head: true }).eq('verification_status', 'approved'),
+        supabase.from('volunteer_details').select('*', { count: 'exact', head: true }).eq('verification_status', 'rejected'),
+      ]);
+
+      // Donor stats
+      const donors = await supabase.from('user_roles').select('*', { count: 'exact', head: true }).eq('role', 'donor');
+
+      // Food request stats
+      const [pendingRequests, completedDeliveries] = await Promise.all([
+        supabase.from('food_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('food_requests').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+      ]);
+
+      setStats({
+        pendingNGOs: pendingNGOs.count || 0,
+        approvedNGOs: approvedNGOs.count || 0,
+        rejectedNGOs: rejectedNGOs.count || 0,
+        pendingVolunteers: pendingVolunteers.count || 0,
+        approvedVolunteers: approvedVolunteers.count || 0,
+        rejectedVolunteers: rejectedVolunteers.count || 0,
+        activeDonors: donors.count || 0,
+        pendingFoodRequests: pendingRequests.count || 0,
+        completedDeliveries: completedDeliveries.count || 0,
+      });
     } catch (error) {
-      console.error('Error fetching pending requests count:', error);
+      console.error('Error fetching stats:', error);
     }
   };
 
-  const fetchPendingVerifications = async () => {
+  const fetchPendingNGOs = async () => {
     try {
-      // Fetch pending NGOs
       const { data: ngos, error: ngosError } = await supabase
         .from('ngo_details')
         .select('*')
@@ -97,7 +154,6 @@ export default function AdminDashboard() {
 
       if (ngosError) throw ngosError;
 
-      // Fetch profiles and documents for each NGO
       const enrichedNGOs = await Promise.all(
         (ngos || []).map(async (ngo) => {
           const { data: profile } = await supabase
@@ -122,8 +178,6 @@ export default function AdminDashboard() {
       setPendingNGOs(enrichedNGOs as PendingNGO[]);
     } catch (error) {
       console.error('Error fetching verifications:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -147,7 +201,7 @@ export default function AdminDashboard() {
         description: 'The NGO has been verified and can now create food requests.',
       });
 
-      fetchPendingVerifications();
+      fetchData();
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -180,7 +234,7 @@ export default function AdminDashboard() {
         description: 'The NGO has been notified of the rejection.',
       });
 
-      fetchPendingVerifications();
+      fetchData();
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -205,6 +259,8 @@ export default function AdminDashboard() {
     );
   }
 
+  const totalPendingVerifications = stats.pendingNGOs + stats.pendingVolunteers;
+
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background px-6 py-4">
@@ -225,8 +281,8 @@ export default function AdminDashboard() {
 
       <main className="p-8">
         <div className="mx-auto max-w-7xl">
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {/* Overview Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-2">
@@ -235,7 +291,8 @@ export default function AdminDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-warning">{pendingNGOs.length}</div>
+                <div className="text-3xl font-bold text-warning">{totalPendingVerifications}</div>
+                <p className="text-xs text-muted-foreground">{stats.pendingNGOs} NGOs, {stats.pendingVolunteers} Volunteers</p>
               </CardContent>
             </Card>
             <Card>
@@ -246,7 +303,20 @@ export default function AdminDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-success">0</div>
+                <div className="text-3xl font-bold text-success">{stats.approvedNGOs}</div>
+                <p className="text-xs text-muted-foreground">{stats.rejectedNGOs} rejected</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Verified Volunteers
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-success">{stats.approvedVolunteers}</div>
+                <p className="text-xs text-muted-foreground">{stats.rejectedVolunteers} rejected</p>
               </CardContent>
             </Card>
             <Card>
@@ -257,51 +327,179 @@ export default function AdminDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0</div>
+                <div className="text-3xl font-bold">{stats.activeDonors}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Active Volunteers
+                  <TrendingUp className="h-4 w-4" />
+                  Completed Deliveries
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0</div>
+                <div className="text-3xl font-bold text-primary">{stats.completedDeliveries}</div>
               </CardContent>
             </Card>
           </div>
 
           {/* Main Content */}
-          <Tabs defaultValue="verifications" className="space-y-6">
+          <Tabs defaultValue="overview" className="space-y-6">
             <TabsList>
-              <TabsTrigger value="verifications">
-                Pending Verifications
-                {pendingNGOs.length > 0 && (
-                  <Badge variant="destructive" className="ml-2">
-                    {pendingNGOs.length}
-                  </Badge>
+              <TabsTrigger value="overview">
+                <TrendingUp className="h-4 w-4 mr-1" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="ngo-verification">
+                <Building2 className="h-4 w-4 mr-1" />
+                NGO Verification
+                {stats.pendingNGOs > 0 && (
+                  <Badge variant="destructive" className="ml-2">{stats.pendingNGOs}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="volunteer-verification">
+                <Users className="h-4 w-4 mr-1" />
+                Volunteer Verification
+                {stats.pendingVolunteers > 0 && (
+                  <Badge variant="destructive" className="ml-2">{stats.pendingVolunteers}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="food-requests">
                 <UtensilsCrossed className="h-4 w-4 mr-1" />
                 Food Requests
-                {pendingRequestsCount > 0 && (
-                  <Badge variant="destructive" className="ml-2">
-                    {pendingRequestsCount}
-                  </Badge>
+                {stats.pendingFoodRequests > 0 && (
+                  <Badge variant="destructive" className="ml-2">{stats.pendingFoodRequests}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="map">
                 <MapPin className="h-4 w-4 mr-1" />
                 Map View
               </TabsTrigger>
-              <TabsTrigger value="ngos">All NGOs</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="verifications" className="space-y-6">
+            {/* Overview Tab */}
+            <TabsContent value="overview" className="space-y-6">
+              <div className="grid md:grid-cols-3 gap-6">
+                {/* NGO Summary */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      NGO Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-warning" />
+                          Pending
+                        </span>
+                        <Badge variant="outline" className="bg-warning/10 text-warning">{stats.pendingNGOs}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-success" />
+                          Approved
+                        </span>
+                        <Badge variant="outline" className="bg-success/10 text-success">{stats.approvedNGOs}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <XCircle className="h-4 w-4 text-destructive" />
+                          Rejected
+                        </span>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive">{stats.rejectedNGOs}</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Volunteer Summary */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Volunteer Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-warning" />
+                          Pending
+                        </span>
+                        <Badge variant="outline" className="bg-warning/10 text-warning">{stats.pendingVolunteers}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-success" />
+                          Approved
+                        </span>
+                        <Badge variant="outline" className="bg-success/10 text-success">{stats.approvedVolunteers}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <XCircle className="h-4 w-4 text-destructive" />
+                          Rejected
+                        </span>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive">{stats.rejectedVolunteers}</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Platform Activity */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5" />
+                      Platform Activity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <Heart className="h-4 w-4 text-primary" />
+                          Active Donors
+                        </span>
+                        <Badge variant="outline">{stats.activeDonors}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <UtensilsCrossed className="h-4 w-4 text-warning" />
+                          Pending Requests
+                        </span>
+                        <Badge variant="outline" className="bg-warning/10 text-warning">{stats.pendingFoodRequests}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-success" />
+                          Completed
+                        </span>
+                        <Badge variant="outline" className="bg-success/10 text-success">{stats.completedDeliveries}</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Quick Actions */}
+              {totalPendingVerifications > 0 && (
+                <Alert className="bg-warning/10 border-warning">
+                  <Clock className="h-4 w-4 text-warning" />
+                  <AlertTitle className="text-warning">Action Required</AlertTitle>
+                  <AlertDescription>
+                    You have {totalPendingVerifications} pending verification{totalPendingVerifications > 1 ? 's' : ''} to review.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </TabsContent>
+
+            {/* NGO Verification Tab */}
+            <TabsContent value="ngo-verification" className="space-y-6">
               {pendingNGOs.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6">
@@ -310,9 +508,7 @@ export default function AdminDashboard() {
                         <CheckCircle2 className="h-8 w-8 text-success" />
                       </div>
                       <h3 className="text-lg font-medium mb-2">All caught up!</h3>
-                      <p className="text-muted-foreground">
-                        No pending verifications at the moment.
-                      </p>
+                      <p className="text-muted-foreground">No pending NGO verifications.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -339,7 +535,6 @@ export default function AdminDashboard() {
                     </CardHeader>
                     <CardContent className="pt-6">
                       <div className="grid md:grid-cols-2 gap-6">
-                        {/* Details */}
                         <div>
                           <h4 className="font-medium mb-3">Organization Details</h4>
                           <dl className="space-y-2 text-sm">
@@ -355,8 +550,6 @@ export default function AdminDashboard() {
                             </div>
                           </dl>
                         </div>
-
-                        {/* Documents */}
                         <div>
                           <h4 className="font-medium mb-3">Uploaded Documents</h4>
                           {ngo.documents.length === 0 ? (
@@ -369,15 +562,10 @@ export default function AdminDashboard() {
                           ) : (
                             <ul className="space-y-2">
                               {ngo.documents.map((doc) => (
-                                <li
-                                  key={doc.id}
-                                  className="flex items-center justify-between p-2 bg-muted rounded-lg"
-                                >
+                                <li key={doc.id} className="flex items-center justify-between p-2 bg-muted rounded-lg">
                                   <div className="flex items-center gap-2">
                                     <FileText className="h-4 w-4 text-muted-foreground" />
-                                    <span className="text-sm">
-                                      {doc.document_type.replace('_', ' ')}
-                                    </span>
+                                    <span className="text-sm">{doc.document_type.replace('_', ' ')}</span>
                                   </div>
                                   <a
                                     href={doc.document_url}
@@ -385,8 +573,7 @@ export default function AdminDashboard() {
                                     rel="noopener noreferrer"
                                     className="text-primary hover:underline text-sm flex items-center gap-1"
                                   >
-                                    View
-                                    <ExternalLink className="h-3 w-3" />
+                                    View <ExternalLink className="h-3 w-3" />
                                   </a>
                                 </li>
                               ))}
@@ -394,8 +581,6 @@ export default function AdminDashboard() {
                           )}
                         </div>
                       </div>
-
-                      {/* Actions */}
                       <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
                         <Button
                           variant="outline"
@@ -427,6 +612,43 @@ export default function AdminDashboard() {
               )}
             </TabsContent>
 
+            {/* Volunteer Verification Tab */}
+            <TabsContent value="volunteer-verification">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Pending Volunteer Verifications
+                  </CardTitle>
+                  <CardDescription>
+                    Review and approve volunteer applications
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AdminVolunteerVerification />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Food Requests Tab */}
+            <TabsContent value="food-requests">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UtensilsCrossed className="h-5 w-5" />
+                    Pending Food Requests
+                  </CardTitle>
+                  <CardDescription>
+                    Review and approve food requests from verified NGOs
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AdminFoodRequestReview />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Map Tab */}
             <TabsContent value="map">
               <Card>
                 <CardHeader>
@@ -469,43 +691,6 @@ export default function AdminDashboard() {
                       </div>
                     );
                   })()}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="ngos">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center py-12 text-muted-foreground">
-                    NGO management coming soon...
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="food-requests">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UtensilsCrossed className="h-5 w-5" />
-                    Pending Food Requests
-                  </CardTitle>
-                  <CardDescription>
-                    Review and approve food requests from verified NGOs
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <AdminFoodRequestReview />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="analytics">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center py-12 text-muted-foreground">
-                    Platform analytics coming soon...
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

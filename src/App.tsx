@@ -19,6 +19,7 @@ import DonorDashboard from "./pages/donor/DonorDashboard";
 
 // Volunteer Pages
 import VolunteerDashboard from "./pages/volunteer/VolunteerDashboard";
+import VolunteerVerification from "./pages/volunteer/VolunteerVerification";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -46,6 +47,7 @@ const App = () => (
 
             {/* Volunteer Routes */}
             <Route path="/volunteer" element={<VolunteerDashboard />} />
+            <Route path="/volunteer/verification" element={<VolunteerVerification />} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
