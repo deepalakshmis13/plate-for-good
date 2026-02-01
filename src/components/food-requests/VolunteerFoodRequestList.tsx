@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ interface FoodRequestForVolunteer {
   address: string | null;
   needed_by: string | null;
   created_at: string;
+  volunteer_id?: string | null;
   ngo?: {
     organization_name: string;
     city: string;
@@ -52,8 +54,48 @@ interface VolunteerFoodRequestListProps {
 }
 
 export function VolunteerFoodRequestList({ userLocation }: VolunteerFoodRequestListProps) {
+  const { user } = useAuth();
   const [requests, setRequests] = useState<FoodRequestForVolunteer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+
+  const handleAcceptDelivery = async (requestId: string) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to accept deliveries.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAcceptingId(requestId);
+    try {
+      const { error } = await supabase
+        .from('food_requests')
+        .update({ status: 'in_progress' })
+        .eq('id', requestId)
+        .eq('status', 'matched');
+
+      if (error) throw error;
+
+      toast({
+        title: 'Delivery Accepted!',
+        description: 'You have accepted this delivery. Please proceed to pick up the food.',
+      });
+
+      fetchAvailableRequests();
+    } catch (error) {
+      console.error('Error accepting delivery:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to accept delivery. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAcceptingId(null);
+    }
+  };
 
   const fetchAvailableRequests = async () => {
     try {
@@ -234,9 +276,22 @@ export function VolunteerFoodRequestList({ userLocation }: VolunteerFoodRequestL
 
               {request.status === 'matched' && (
                 <div className="flex justify-end pt-2">
-                  <Button size="sm">
-                    <Hand className="h-4 w-4 mr-2" />
-                    Accept Delivery
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleAcceptDelivery(request.id)}
+                    disabled={acceptingId === request.id}
+                  >
+                    {acceptingId === request.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Accepting...
+                      </>
+                    ) : (
+                      <>
+                        <Hand className="h-4 w-4 mr-2" />
+                        Accept Delivery
+                      </>
+                    )}
                   </Button>
                 </div>
               )}
