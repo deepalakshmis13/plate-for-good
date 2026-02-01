@@ -294,6 +294,17 @@ export default function Auth() {
                 </form>
               </TabsContent>
             </Tabs>
+            
+            {/* Development link to admin auth */}
+            <div className="mt-6 pt-4 border-t border-border text-center">
+              <p className="text-xs text-muted-foreground mb-2">Development Only</p>
+              <a 
+                href="/admin/auth" 
+                className="text-sm text-primary hover:underline"
+              >
+                Admin Login →
+              </a>
+            </div>
           </CardContent>
         </Card>
       </div>
