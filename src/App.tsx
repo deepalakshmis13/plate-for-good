@@ -23,6 +23,7 @@ import VolunteerVerification from "./pages/volunteer/VolunteerVerification";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminAuth from "./pages/admin/AdminAuth";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
 
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/auth" element={<AdminAuth />} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
