@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, MapPin, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
+import { Clock, MapPin, AlertTriangle, CheckCircle2, Trash2, User, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import type { FoodRequest, FoodRequestStatus, UrgencyLevel } from './types';
 
@@ -30,6 +30,7 @@ const urgencyConfig: Record<UrgencyLevel, { label: string; className: string }> 
 export function FoodRequestCard({ request, onDelete, showActions = true }: FoodRequestCardProps) {
   const status = statusConfig[request.status];
   const urgency = urgencyConfig[request.urgency_level];
+  const showVolunteerInfo = request.volunteer_info && ['in_progress', 'completed'].includes(request.status);
 
   return (
     <Card>
@@ -82,6 +83,28 @@ export function FoodRequestCard({ request, onDelete, showActions = true }: FoodR
             <MapPin className="h-3 w-3" />
             {request.address}
           </p>
+        )}
+
+        {/* Volunteer Contact Info */}
+        {showVolunteerInfo && (
+          <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
+            <p className="text-xs font-medium text-primary mb-2">Volunteer Contact</p>
+            <div className="flex flex-col gap-1 text-sm">
+              <div className="flex items-center gap-2">
+                <User className="h-3 w-3 text-muted-foreground" />
+                <span>{request.volunteer_info!.full_name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="h-3 w-3 text-muted-foreground" />
+                <a 
+                  href={`tel:${request.volunteer_info!.phone_number}`}
+                  className="text-primary hover:underline"
+                >
+                  {request.volunteer_info!.phone_number}
+                </a>
+              </div>
+            </div>
+          </div>
         )}
 
         {showActions && request.status === 'pending' && onDelete && (

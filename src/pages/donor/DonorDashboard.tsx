@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, LogOut, Leaf, Package, Heart, CheckCircle2 } from 'lucide-react';
+import { Loader2, LogOut, Leaf, Package, Heart, CheckCircle2, User, Phone } from 'lucide-react';
 import { DonorFoodRequestList } from '@/components/food-requests';
 
 export default function DonorDashboard() {
@@ -162,8 +162,19 @@ export default function DonorDashboard() {
 }
 
 // Component to show donor's accepted donations
+interface DonationWithVolunteer {
+  id: string;
+  title: string;
+  description: string | null;
+  quantity_needed: number;
+  quantity_unit: string;
+  status: string;
+  volunteer_id: string | null;
+  volunteer_info?: { full_name: string; phone_number: string } | null;
+}
+
 function MyDonationsList({ userId }: { userId?: string }) {
-  const [donations, setDonations] = useState<any[]>([]);
+  const [donations, setDonations] = useState<DonationWithVolunteer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -178,7 +189,27 @@ function MyDonationsList({ userId }: { userId?: string }) {
         .order('updated_at', { ascending: false });
 
       if (!error && data) {
-        setDonations(data);
+        // Fetch volunteer info for donations with volunteer_id
+        const volunteerIds = [...new Set(data.filter(d => d.volunteer_id).map(d => d.volunteer_id))];
+        
+        let volunteerMap = new Map<string, { full_name: string; phone_number: string }>();
+        if (volunteerIds.length > 0) {
+          const { data: volunteersData } = await supabase
+            .from('volunteer_details')
+            .select('user_id, full_name, phone_number')
+            .in('user_id', volunteerIds);
+          
+          if (volunteersData) {
+            volunteerMap = new Map(volunteersData.map(v => [v.user_id, { full_name: v.full_name, phone_number: v.phone_number }]));
+          }
+        }
+
+        const donationsWithVolunteer = data.map(donation => ({
+          ...donation,
+          volunteer_info: donation.volunteer_id ? volunteerMap.get(donation.volunteer_id) || null : null,
+        }));
+
+        setDonations(donationsWithVolunteer);
       }
       setLoading(false);
     };
@@ -231,6 +262,8 @@ function MyDonationsList({ userId }: { userId?: string }) {
     <div className="space-y-4">
       {donations.map((donation) => {
         const status = statusLabels[donation.status] || { label: donation.status, className: 'bg-muted' };
+        const showVolunteerInfo = donation.volunteer_info && ['in_progress', 'completed'].includes(donation.status);
+        
         return (
           <Card key={donation.id}>
             <CardHeader className="pb-3">
@@ -246,11 +279,33 @@ function MyDonationsList({ userId }: { userId?: string }) {
                 </span>
               </div>
             </CardHeader>
-            {donation.description && (
-              <CardContent>
+            <CardContent className="space-y-3">
+              {donation.description && (
                 <p className="text-sm text-muted-foreground">{donation.description}</p>
-              </CardContent>
-            )}
+              )}
+
+              {/* Volunteer Contact Info */}
+              {showVolunteerInfo && (
+                <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                  <p className="text-xs font-medium text-primary mb-2">Volunteer Contact</p>
+                  <div className="flex flex-col gap-1 text-sm">
+                    <div className="flex items-center gap-2">
+                      <User className="h-3 w-3 text-muted-foreground" />
+                      <span>{donation.volunteer_info!.full_name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-3 w-3 text-muted-foreground" />
+                      <a 
+                        href={`tel:${donation.volunteer_info!.phone_number}`}
+                        className="text-primary hover:underline"
+                      >
+                        {donation.volunteer_info!.phone_number}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
           </Card>
         );
       })}
