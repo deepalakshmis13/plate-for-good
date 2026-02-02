@@ -76,6 +76,7 @@ export type Database = {
           updated_at: string
           urgency_level: string
           user_id: string
+          volunteer_id: string | null
         }
         Insert: {
           address?: string | null
@@ -94,6 +95,7 @@ export type Database = {
           updated_at?: string
           urgency_level?: string
           user_id: string
+          volunteer_id?: string | null
         }
         Update: {
           address?: string | null
@@ -112,6 +114,7 @@ export type Database = {
           updated_at?: string
           urgency_level?: string
           user_id?: string
+          volunteer_id?: string | null
         }
         Relationships: [
           {

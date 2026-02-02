@@ -73,7 +73,7 @@ export function VolunteerFoodRequestList({ userLocation }: VolunteerFoodRequestL
     try {
       const { error } = await supabase
         .from('food_requests')
-        .update({ status: 'in_progress' })
+        .update({ status: 'in_progress', volunteer_id: user.id })
         .eq('id', requestId)
         .eq('status', 'matched');
 
