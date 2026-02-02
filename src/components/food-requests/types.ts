@@ -1,6 +1,11 @@
 export type FoodRequestStatus = 'pending' | 'approved' | 'matched' | 'in_progress' | 'completed' | 'cancelled';
 export type UrgencyLevel = 'low' | 'normal' | 'high' | 'critical';
 
+export interface VolunteerInfo {
+  full_name: string;
+  phone_number: string;
+}
+
 export interface FoodRequest {
   id: string;
   ngo_id: string;
@@ -17,6 +22,9 @@ export interface FoodRequest {
   needed_by: string | null;
   created_at: string;
   updated_at: string;
+  donor_id?: string | null;
+  volunteer_id?: string | null;
+  volunteer_info?: VolunteerInfo | null;
 }
 
 export interface FoodRequestPhoto {

@@ -27,7 +27,29 @@ export function FoodRequestList({ ngoId, refreshTrigger }: FoodRequestListProps)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setRequests((data as unknown as FoodRequest[]) || []);
+
+      // Fetch volunteer info for requests with volunteer_id
+      const requestsData = data || [];
+      const volunteerIds = [...new Set(requestsData.filter(r => r.volunteer_id).map(r => r.volunteer_id))];
+      
+      let volunteerMap = new Map<string, { full_name: string; phone_number: string }>();
+      if (volunteerIds.length > 0) {
+        const { data: volunteersData } = await supabase
+          .from('volunteer_details')
+          .select('user_id, full_name, phone_number')
+          .in('user_id', volunteerIds);
+        
+        if (volunteersData) {
+          volunteerMap = new Map(volunteersData.map(v => [v.user_id, { full_name: v.full_name, phone_number: v.phone_number }]));
+        }
+      }
+
+      const requestsWithVolunteerInfo = requestsData.map(request => ({
+        ...request,
+        volunteer_info: request.volunteer_id ? volunteerMap.get(request.volunteer_id) || null : null,
+      }));
+
+      setRequests((requestsWithVolunteerInfo as unknown as FoodRequest[]) || []);
     } catch (error) {
       console.error('Error fetching requests:', error);
       toast({
